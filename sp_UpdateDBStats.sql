@@ -60,3 +60,6 @@ while (@current < @maxrows)
 		set @current +=1
 
 	END
+
+-- Kind of sledgehammer approach - For sure a topic for debate on if this is a good approach or not
+DBCC FREEPROCCACHE
