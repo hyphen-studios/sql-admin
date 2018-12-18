@@ -36,7 +36,7 @@ SET @current = 1
 SET @maxrows = (SELECT MAX(id) FROM #databases)
 
 -- Loop through the databases
-while (@current < @maxrows)
+while (@current <= @maxrows)
 	BEGIN
 		SET @guid = NEWID()
 		SET @dbname = (SELECT dbname FROM #databases WHERE id = @current)
