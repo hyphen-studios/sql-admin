@@ -3,7 +3,7 @@
 -- MaintenanceTasks - Captures the task being executed, start and end time, along with the script being executed
 CREATE TABLE [dbo].[MaintenanceTasks](
 	[ID] [int] IDENTITY(1,1) NOT NULL,
-	[GUID] [uniqueidentifier] NOT NULL,
+	[JobID] [uniqueidentifier] NOT NULL,
 	[ProcessTask] [nvarchar](50) NOT NULL,
 	[DBName] [nvarchar](150) NOT NULL,
 	[StartTime] [datetime] NULL,
