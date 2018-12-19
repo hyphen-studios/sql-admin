@@ -16,16 +16,44 @@ DECLARE @maxrows INT
 DECLARE @dbname NVARCHAR(200)
 DECLARE @guid uniqueidentifier  
 DECLARE @sql nvarchar(250)
+DECLARE @starttime DATETIME
 
-/*------------------------ Database temp table ------------------------*/
--- Drop temp table if it exists
+/*------------------------ Database temp tables ------------------------*/
+-- Drop temp tables if they exist
 IF OBJECT_ID('tempdb..#databases') IS NOT NULL DROP TABLE #databases
+IF OBJECT_ID('tempdb..#sqllogs') IS NOT NULL DROP TABLE #sqllogs
+IF OBJECT_ID('tempdb..#checkdbresults') IS NOT NULL DROP TABLE #checkdbresults
+IF OBJECT_ID('tempdb..#tasks') IS NOT NULL DROP TABLE #tasks
 
--- Create temp table
+-- Create temp tables
 CREATE TABLE #databases
 (
 ID INT IDENTITY(1, 1) primary key ,
 DBName NVARCHAR(200),
+);
+
+CREATE TABLE #sqllogs 
+(
+LogDate datetime,
+ProcessInfo varchar(100),
+TextLine varchar(500)
+);
+
+CREATE TABLE #checkdbresults 
+(
+LogDate datetime,
+TextLine varchar(500),
+DBName NVARCHAR(200),
+ErrorsFound INT,
+ErrorsFixed int
+);
+
+CREATE TABLE #tasks
+(
+ID INT IDENTITY(1, 1) primary key ,
+DBName NVARCHAR(200),
+Guid NVARCHAR(200),
+StartTime DATETIME
 );
 
 -- Insert database names into a temp table
@@ -43,7 +71,7 @@ while (@current <= @maxrows)
 		SET @sql = 'Use [' +  @dbname + ']; DBCC CHECKDB WITH NO_INFOMSGS;'
 
 		-- Insert Record into MaintenanceTask table with start time
-		INSERT INTO maintenancetasks(GUID, ProcessTask, DBname, StartTime)
+		INSERT INTO maintenancetasks(JobID, ProcessTask, DBname, StartTime)
 		VALUES(@guid,'Check DB Integrity', @dbname, GETDATE())
 
 		PRINT @sql
@@ -54,9 +82,57 @@ while (@current <= @maxrows)
 		SET
         command = @sql,
 		EndTime = getdate()
-		WHERE guid = @guid;
+		WHERE JobID = @guid;
 
 		-- loop to the next database
+		set @current +=1
+
+	END
+
+-- Get DBCC CHECKDB result info from the SQL logs
+INSERT #sqllogs EXEC sp_readerrorlog 0, 1, 'DBCC CHECKDB'
+
+-- Parse through the logs and insert results into a temp table
+INSERT INTO #checkdbresults (LogDate, TextLine, DBName, ErrorsFound, ErrorsFixed)
+SELECT 
+    LogDate,	
+	TextLine,
+    dbo.ufn_GetStringBetween (TextLine ,'(',')' ) AS CHECKED_DB,
+    dbo.ufn_GetStringBetween (TextLine ,'found','errors' ) AS ERRORS_FOUND,
+    dbo.ufn_GetStringBetween (TextLine ,'repaired','errors.' ) AS ERRORS_REPAIRED
+FROM 
+    #sqllogs
+WHERE 
+    TextLine like '%DBCC CHECKDB%'
+
+-- Insert the latest DBCC tasks from the maintenancetasks table into a te
+INSERT INTO #tasks (DBName,Guid, StartTime)
+SELECT dbname, jobid, StartTime
+FROM dbo.MaintenanceTasks
+WHERE DATEDIFF(MINUTE, StartTime, GETDATE()) < 25  AND ProcessTask = 'Check DB Integrity'
+
+SET @current = 1
+SET @maxrows = (SELECT MAX(id) FROM #tasks)
+
+-- Loop through the databases again
+while (@current <= @maxrows)
+	BEGIN
+		SELECT @dbname=dbname, @guid=Guid, @starttime=StartTime  FROM #tasks WHERE id = @current;
+
+		INSERT INTO dbo.MaintenanceCheckDB(JobID, DBName, CheckDBErrors, CheckDBFixed, CheckDBText)
+		SELECT 
+			@guid,	
+			dbo.ufn_GetStringBetween (TextLine ,'(',')' ) AS CHECKED_DB,
+			dbo.ufn_GetStringBetween (TextLine ,'found','errors' ) AS ERRORS_FOUND,
+			dbo.ufn_GetStringBetween (TextLine ,'repaired','errors.' ) AS ERRORS_REPAIRED,
+			TextLine
+		FROM 
+			#sqllogs
+		WHERE 
+			TextLine like '%DBCC CHECKDB ('+ @dbname +')%'
+			AND DATEDIFF(MINUTE, LogDate, @starttime) <= 1 		
+
+	   -- loop to the next database
 		set @current +=1
 
 	END
