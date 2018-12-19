@@ -1,4 +1,4 @@
-CREATE PROCEDURE sp_UpdateDBStats
+Create PROCEDURE [dbo].[sp_UpdateDBStats]
 as
 /******************************************************************************
 *  Stored Procedure Name: sp_UpdateDBStats
@@ -43,7 +43,7 @@ while (@current <= @maxrows)
 		SET @sql = 'Use [' +  @dbname + ']; EXEC sp_updatestats;'
 
 		-- Insert Record into MaintenanceTask table with start time
-		INSERT INTO maintenancetasks(GUID, ProcessTask, DBname, StartTime)
+		INSERT INTO maintenancetasks(JobID, ProcessTask, DBname, StartTime)
 		VALUES(@guid,'Update Database Statistics', @dbname, GETDATE())
 
 		PRINT @sql
@@ -54,7 +54,7 @@ while (@current <= @maxrows)
 		SET
         command = @sql,
 		EndTime = getdate()
-		WHERE guid = @guid;
+		WHERE JobID = @guid;
 
 		-- loop to the next database
 		set @current +=1
