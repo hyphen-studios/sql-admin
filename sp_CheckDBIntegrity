@@ -81,7 +81,8 @@ while (@current <= @maxrows)
 		UPDATE maintenancetasks
 		SET
         command = @sql,
-		EndTime = getdate()
+		EndTime = GETDATE(),
+		RunTime = DATEDIFF(MINUTE, StartTime, GETDATE())
 		WHERE JobID = @guid;
 
 		-- loop to the next database
