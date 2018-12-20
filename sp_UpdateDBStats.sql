@@ -52,7 +52,7 @@ while (@current <= @maxrows)
 		-- Update MaintenceTasks with end time and command
 		UPDATE maintenancetasks
 		SET
-        command = @sql,
+        	command = @sql,
 		EndTime = GETDATE(),
 		RunTime = DATEDIFF(MINUTE, StartTime, GETDATE())
 		WHERE JobID = @guid;
