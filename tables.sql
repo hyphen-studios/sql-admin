@@ -8,6 +8,7 @@ CREATE TABLE [dbo].[MaintenanceTasks](
 	[DBName] [nvarchar](150) NOT NULL,
 	[StartTime] [datetime] NULL,
 	[EndTime] [datetime] NULL,
+	[RunTime] [INT] NULL,
 	[Command] [text] NULL,
  CONSTRAINT [PK_MaintenanceTasks] PRIMARY KEY CLUSTERED 
 (
