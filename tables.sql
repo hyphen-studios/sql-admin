@@ -22,6 +22,7 @@ CREATE TABLE [dbo].[MaintenanceIndexes](
 	[JobID] [uniqueidentifier] NOT NULL,
 	[DBName] [nvarchar](150) NOT NULL,
 	[DBID] [int] NOT NULL,
+	[SchName] [nvarchar](50) NULL,
 	[TblName] [nvarchar](150) NULL,
 	[TblID] [int] NULL,
 	[IndxID] [int] NULL,
@@ -30,12 +31,14 @@ CREATE TABLE [dbo].[MaintenanceIndexes](
 	[IndxDepth] [int] NULL,
 	[IndxLevel] [int] NULL,
 	[PartitionNum] [int] NULL,
-	[PreDeFrag] [nvarchar](50) NULL,
-	[PostDefrag] [nvarchar](50) NULL,
-	[AvgRecordSize] [nvarchar](50) NULL,
-	[AvgSpaceUsed] [nvarchar](50) NULL,
+	[PreDeFrag] [decimal](18, 0) NULL,
+	[PostDefrag] [decimal](18, 0) NULL,
+	[AvgRecordSize] [decimal](18, 0) NULL,
+	[AvgSpaceUsed] [decimal](18, 0) NULL,
 	[RecordCount] [int] NULL,
+	[AllowPageCount] [int] NULL,
 	[CalcDate] [datetime] NULL,
+	[Command] [nvarchar](500) NULL,
  CONSTRAINT [PK_MaintenanceIndexes] PRIMARY KEY CLUSTERED 
 (
 	[ID] ASC
