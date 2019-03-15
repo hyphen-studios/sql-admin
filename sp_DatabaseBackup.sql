@@ -5,8 +5,7 @@ as
 *  Input Parameters: none
 *  Use Case: EXEC [sp_DatabaseBackup] @DBName='EDW', @FileLocation='\\sharename\foldername\ or C:\Folder Location', @BackupFile='edw-bu-20170110.bak'
 *  ** NOTE ** The SQL Engine service accounts needs administrator access to the share or folder location
-*  Description: Loops through MaintenanceIndexes table and runs a command to
-*  either rebuild or orginize indexes based on on fragmentation percentage
+*  Description: Backsup a database to a network or local file location
 *  History:
 *  Date:		    Action:								Developer: 
 *  2017-12-21	  Initial version			  Patrick Lee
