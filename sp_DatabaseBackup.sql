@@ -1,9 +1,9 @@
-CREATE PROCEDURE [dbo].[sp_BackupDatabase] @DBName NVARCHAR(255), @FileLocation NVARCHAR(255), @BackupFile NVARCHAR(255)  
+CREATE PROCEDURE [dbo].[sp_DatabaseBackup] @DBName NVARCHAR(255), @FileLocation NVARCHAR(255), @BackupFile NVARCHAR(255)  
 as
 /******************************************************************************
-*  Stored Procedure Name: sp_BackupDatabase
+*  Stored Procedure Name: sp_DatabaseBackup
 *  Input Parameters: none
-*  Use Case: EXEC [P_BACKUP_DATABASE] @DBName='EDW', @FileLocation='\\sharename\foldername\ or C:\Folder Location', @BackupFile='edw-bu-20170110.bak'
+*  Use Case: EXEC [sp_DatabaseBackup] @DBName='EDW', @FileLocation='\\sharename\foldername\ or C:\Folder Location', @BackupFile='edw-bu-20170110.bak'
 *  ** NOTE ** The SQL Engine service accounts needs administrator access to the share or folder location
 *  Description: Loops through MaintenanceIndexes table and runs a command to
 *  either rebuild or orginize indexes based on on fragmentation percentage
