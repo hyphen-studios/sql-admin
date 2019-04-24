@@ -1,53 +1,127 @@
--- Enabling the replication database
-use master
-exec sp_replicationdboption @dbname = N'<DBName>', @optname = N'publish', @value = N'true'
+ALTER PROCEDURE sp_ReplicationStart @Publication NVARCHAR(75), @PubDBName NVARCHAR(75), @Schemas NVARCHAR(150), @DestDBName NVARCHAR(150), @Subscriber NVARCHAR(75), @ExecutedBy NVARCHAR(75)
+As
+DECLARE
+	
+	@SchemasTotal INT,
+	@JobName NVARCHAR(150),
+	@JobID UNIQUEIDENTIFIER,
+	@StartTime DATETIME2,	
+	@TSQL NVARCHAR(MAX),
+	@MinRec INT,
+	@MaxRec INT,
+	@Table NVARCHAR(50),
+	@Schema NVARCHAR(50)
 
-exec [CustomWorks].sys.sp_addlogreader_agent @job_login = null, @job_password = null, @publisher_security_mode = 1
+-- Set Variables
+SET @SchemasTotal = LEN(@Schemas) - LEN(REPLACE(@Schemas, ',', ''))+1
+SET @JobName='Start Replication - ' + convert(varchar, getdate(), 0)
+SET @JobID = NEWID(); 
+SET @StartTime = GETDATE()
+
+SET NOCOUNT ON
+
+
+-- Insert Job Information into the ReplicationJob Table
+INSERT INTO ReplicationJob(JobID, JobName, StartTime, ExecutedBy)
+VALUES(@JobID, @JobName, @StartTime, @ExecutedBy)
+
+-- Drop / Create temp table
+IF OBJECT_ID('tempdb..#schemas') IS NOT NULL DROP TABLE #schemas
+
+CREATE TABLE #schemas
+(
+ID INT IDENTITY(1, 1) primary key ,
+DBName NVARCHAR(200),
+SchemaName NVARCHAR(150)
+);
+
+
+-- Loop through schemas, and insert them into a temp table
+WHILE @SchemasTotal > 0
+BEGIN
+
+  -- Insert the Schemas into the temp table #schemas
+  INSERT INTO #schemas(DBName, SchemaName)
+  VALUES(@PubDBName, REPLACE(LEFT(@Schemas, CHARINDEX(',', @Schemas+',')), ',', ''))
+  
+  -- Setup the next record
+  set @Schemas = stuff(@Schemas, 1, charindex(',', @Schemas+','), '')
+  SET @SchemasTotal = @SchemasTotal-1
+
+END
+
+
+SET @TSQL = N'
+SELECT st.SchemaName, t.name, GETDATE()
+FROM #schemas AS st
+	INNER JOIN '+@PubDBName+'.sys.schemas as s
+		on st.SchemaName = s.name
+	INNER JOIN '+@PubDBName+'.sys.tables as t
+		on s.schema_id = t.schema_id
+	INNER JOIN '+@PubDBName+'.sys.indexes as i
+		on t.object_id = i.object_id and i.is_primary_key = 1
+order by st.SchemaName DESC
+'
+
+-- Insert tables that will be replicated
+INSERT INTO ReplicationArticles(SchemaName, TableName, DateAdded)
+EXEC sp_executesql @TSQL
+
+
+-- Update the JobID since we couldn't insert it with the Dynamic SQL
+UPDATE ReplicationArticles
+	SET JobID = @JobID
+where JobID IS NULL
+
+/*--------------------------------------------- Build Replication Foundation ---------------------------------------------------*/
+SET @TSQL = N'
+use master
+exec sp_replicationdboption @dbname = N'''+@PubDBName+''', @optname = N''publish'', @value = N''true''
+
+exec ['+@PubDBName+'].sys.sp_addlogreader_agent @job_login = null, @job_password = null, @publisher_security_mode = 1
 
 -- Adding the transactional publication
-use [CustomWorks]
-exec sp_addpublication @publication = N'WestProd', @description = N'Transactional publication of database ''CustomWorks'' from Publisher ''DESKTOP-OVN2GNF''.', @sync_method = N'concurrent', @retention = 0, @allow_push = N'true', @allow_pull = N'true', @allow_anonymous = N'true', @enabled_for_internet = N'false', @snapshot_in_defaultfolder = N'true', @compress_snapshot = N'false', @ftp_port = 21, @ftp_login = N'anonymous', @allow_subscription_copy = N'false', @add_to_active_directory = N'false', @repl_freq = N'continuous', @status = N'active', @independent_agent = N'true', @immediate_sync = N'true', @allow_sync_tran = N'false', @autogen_sync_procs = N'false', @allow_queued_tran = N'false', @allow_dts = N'false', @replicate_ddl = 1, @allow_initialize_from_backup = N'false', @enabled_for_p2p = N'false', @enabled_for_het_sub = N'false'
--- Security Configurations for the Replication Agent Job(s)
-exec sp_addpublication_snapshot @publication = N'WestProd', @frequency_type = 1, @frequency_interval = 0, @frequency_relative_interval = 0, @frequency_recurrence_factor = 0, @frequency_subday = 0, @frequency_subday_interval = 0, @active_start_time_of_day = 0, @active_end_time_of_day = 235959, @active_start_date = 0, @active_end_date = 0, @job_login = null, @job_password = null, @publisher_security_mode = 1
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'sa'
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'NORTHAMERICA\patlee'
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'NT SERVICE\Winmgmt'
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'NT SERVICE\SQLWriter'
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'NT SERVICE\SQLSERVERAGENT'
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'NT Service\MSSQLSERVER'
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'sqlmigrate'
-exec sp_grant_publication_access @publication = N'WestProd', @login = N'distributor_admin'
+use ['+@PubDBName+']
+exec sp_addpublication @publication = N'''+@Publication+''', @description = N''Transactional publication of database '''''+@PubDBName+''''' from Publisher '''''+@@SERVERNAME+'''''. Started on '+convert(varchar, getdate(), 0)+''', @sync_method = N''concurrent'', @retention = 0, @allow_push = N''true'', @allow_pull = N''true'', @allow_anonymous = N''false'', @enabled_for_internet = N''false'', @snapshot_in_defaultfolder = N''true'', @compress_snapshot = N''false'', @ftp_port = 21, @ftp_login = N''anonymous'', @allow_subscription_copy = N''false'', @add_to_active_directory = N''false'', @repl_freq = N''continuous'', @status = N''active'', @independent_agent = N''true'', @immediate_sync = N''false'', @allow_sync_tran = N''false'', @autogen_sync_procs = N''false'', @allow_queued_tran = N''false'', @allow_dts = N''false'', @replicate_ddl = 1, @allow_initialize_from_backup = N''false'', @enabled_for_p2p = N''false'', @enabled_for_het_sub = N''false''
 
 
--- Adding the transactional articles
-use [CustomWorks]
-exec sp_addarticle @publication = N'WestProd', @article = N'Accounts', @source_owner = N'dbo', @source_object = N'Accounts', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'Accounts', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboAccounts]', @del_cmd = N'CALL [sp_MSdel_dboAccounts]', @upd_cmd = N'SCALL [sp_MSupd_dboAccounts]'
-exec sp_addarticle @publication = N'WestProd', @article = N'accounts_tbl', @source_owner = N'dbo', @source_object = N'accounts_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'accounts_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboaccounts_tbl]', @del_cmd = N'CALL [sp_MSdel_dboaccounts_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboaccounts_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'area_tbl', @source_owner = N'dbo', @source_object = N'area_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'area_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboarea_tbl]', @del_cmd = N'CALL [sp_MSdel_dboarea_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboarea_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'catery_tbl', @source_owner = N'dbo', @source_object = N'catery_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'catery_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbocatery_tbl]', @del_cmd = N'CALL [sp_MSdel_dbocatery_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbocatery_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'entity_tbl', @source_owner = N'dbo', @source_object = N'entity_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'entity_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboentity_tbl]', @del_cmd = N'CALL [sp_MSdel_dboentity_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboentity_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'estimate_tbl', @source_owner = N'dbo', @source_object = N'estimate_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'estimate_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboestimate_tbl]', @del_cmd = N'CALL [sp_MSdel_dboestimate_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboestimate_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'faq_catery_tbl', @source_owner = N'dbo', @source_object = N'faq_catery_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'faq_catery_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbofaq_catery_tbl]', @del_cmd = N'CALL [sp_MSdel_dbofaq_catery_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbofaq_catery_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'faq_tbl', @source_owner = N'dbo', @source_object = N'faq_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'faq_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbofaq_tbl]', @del_cmd = N'CALL [sp_MSdel_dbofaq_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbofaq_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'inventory_tbl', @source_owner = N'dbo', @source_object = N'inventory_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'inventory_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboinventory_tbl]', @del_cmd = N'CALL [sp_MSdel_dboinventory_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboinventory_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'location_import', @source_owner = N'dbo', @source_object = N'location_import', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'location_import', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbolocation_import]', @del_cmd = N'CALL [sp_MSdel_dbolocation_import]', @upd_cmd = N'SCALL [sp_MSupd_dbolocation_import]'
-exec sp_addarticle @publication = N'WestProd', @article = N'locations_tbl', @source_owner = N'dbo', @source_object = N'locations_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'locations_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbolocations_tbl]', @del_cmd = N'CALL [sp_MSdel_dbolocations_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbolocations_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'marketreq_tbl2', @source_owner = N'dbo', @source_object = N'marketreq_tbl2', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'marketreq_tbl2', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbomarketreq_tbl2]', @del_cmd = N'CALL [sp_MSdel_dbomarketreq_tbl2]', @upd_cmd = N'SCALL [sp_MSupd_dbomarketreq_tbl2]'
-exec sp_addarticle @publication = N'WestProd', @article = N'mpbid_tbl', @source_owner = N'dbo', @source_object = N'mpbid_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'mpbid_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbompbid_tbl]', @del_cmd = N'CALL [sp_MSdel_dbompbid_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbompbid_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'orderitems_tbl', @source_owner = N'dbo', @source_object = N'orderitems_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'orderitems_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboorderitems_tbl]', @del_cmd = N'CALL [sp_MSdel_dboorderitems_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboorderitems_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'orders_tbl', @source_owner = N'dbo', @source_object = N'orders_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'orders_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboorders_tbl]', @del_cmd = N'CALL [sp_MSdel_dboorders_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboorders_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'pdfs_addon_tbl', @source_owner = N'dbo', @source_object = N'pdfs_addon_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'pdfs_addon_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbopdfs_addon_tbl]', @del_cmd = N'CALL [sp_MSdel_dbopdfs_addon_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbopdfs_addon_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'pdfs_tbl', @source_owner = N'dbo', @source_object = N'pdfs_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'pdfs_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbopdfs_tbl]', @del_cmd = N'CALL [sp_MSdel_dbopdfs_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbopdfs_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'recurring_tbl', @source_owner = N'dbo', @source_object = N'recurring_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'recurring_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dborecurring_tbl]', @del_cmd = N'CALL [sp_MSdel_dborecurring_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dborecurring_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'regionmaster_tbl', @source_owner = N'dbo', @source_object = N'regionmaster_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'regionmaster_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboregionmaster_tbl]', @del_cmd = N'CALL [sp_MSdel_dboregionmaster_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboregionmaster_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'regions_tbl', @source_owner = N'dbo', @source_object = N'regions_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'regions_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboregions_tbl]', @del_cmd = N'CALL [sp_MSdel_dboregions_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboregions_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'responses_tbl', @source_owner = N'dbo', @source_object = N'responses_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'responses_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dboresponses_tbl]', @del_cmd = N'CALL [sp_MSdel_dboresponses_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dboresponses_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'rfq_tbl', @source_owner = N'dbo', @source_object = N'rfq_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'rfq_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dborfq_tbl]', @del_cmd = N'CALL [sp_MSdel_dborfq_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dborfq_tbl]'
-exec sp_addarticle @publication = N'WestProd', @article = N'sysdiagrams', @source_owner = N'dbo', @source_object = N'sysdiagrams', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'sysdiagrams', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbosysdiagrams]', @del_cmd = N'CALL [sp_MSdel_dbosysdiagrams]', @upd_cmd = N'SCALL [sp_MSupd_dbosysdiagrams]'
-exec sp_addarticle @publication = N'WestProd', @article = N'trackingnumber_tbl', @source_owner = N'dbo', @source_object = N'trackingnumber_tbl', @type = N'logbased', @description = N'', @creation_script = N'', @pre_creation_cmd = N'drop', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N'manual', @destination_table = N'trackingnumber_tbl', @destination_owner = N'dbo', @status = 24, @vertical_partition = N'false', @ins_cmd = N'CALL [sp_MSins_dbotrackingnumber_tbl]', @del_cmd = N'CALL [sp_MSdel_dbotrackingnumber_tbl]', @upd_cmd = N'SCALL [sp_MSupd_dbotrackingnumber_tbl]'
-
--- Adding the transactional subscriptions
-exec sp_addsubscription @publication = N'WestProd', @subscriber = N'DESKTOP-OVN2GNF', @destination_db = N'CustomWorksRep', @subscription_type = N'Push', @sync_type = N'automatic', @article = N'all', @update_mode = N'read only', @subscriber_type = 0
-exec sp_addpushsubscription_agent @publication = N'WestProd', @subscriber = N'DESKTOP-OVN2GNF', @subscriber_db = N'CustomWorksRep', @job_login = null, @job_password = null, @subscriber_security_mode = 1, @frequency_type = 64, @frequency_interval = 1, @frequency_relative_interval = 1, @frequency_recurrence_factor = 0, @frequency_subday = 4, @frequency_subday_interval = 5, @active_start_time_of_day = 0, @active_end_time_of_day = 235959, @active_start_date = 0, @active_end_date = 0, @dts_package_location = N'Distributor'
+exec sp_addpublication_snapshot @publication = N'''+@Publication+''', @frequency_type = 1, @frequency_interval = 0, @frequency_relative_interval = 0, @frequency_recurrence_factor = 0, @frequency_subday = 0, @frequency_subday_interval = 0, @active_start_time_of_day = 0, @active_end_time_of_day = 235959, @active_start_date = 0, @active_end_date = 0, @job_login = null, @job_password = null, @publisher_security_mode = 1
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''DBMS_Admin''
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''F18AWL\$SQL_Admin''
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''V18WDDBAWL98\DBMS_Installer''
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''NT SERVICE\Winmgmt''
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''NT Service\MSSQL$AMPSS''
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''NT SERVICE\SQLWriter''
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''NT SERVICE\SQLAgent$AMPSS''
+exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''distributor_admin''
+'
+-- Execute the dynamic SQL to create the Replication Foundation
+EXEC sp_executesql @TSQL
 
 
+/*--------------------------------------------- Add tables to replication ---------------------------------------------------*/
+SET @MinRec = (SELECT MIN(ID) FROM ReplicationArticles where JobID = @JobID)
+SET @MaxRec = (SELECT MAX(ID) FROM ReplicationArticles where JobID = @JobID)
+
+WHILE @MaxRec > @MinRec
+BEGIN
+	
+	SELECT @Table=TableName, @Schema=SchemaName from ReplicationArticles where JobID=@JobID and ID = @MinRec
+
+	SET @TSQL = N'USE ['+@PubDBName+']; exec sp_addarticle @publication = N'''+@Publication+''', @article = N'''+@Table+''', @source_owner = N'''+@Schema+''', @source_object = N'''+@Table+''', @type = N''logbased'', @description = N'''', @creation_script = N'''', @pre_creation_cmd = N''drop'', @schema_option = 0x000000000803409F, @identityrangemanagementoption = N''manual'', @destination_table = N'''+@Table+''', @destination_owner = N'''+@Schema+''', @status = 24, @vertical_partition = N''false'', @ins_cmd = N''CALL [sp_MSins_'+@Schema+''+@Table+']'', @del_cmd = N''CALL [sp_MSdel_'+@Schema+''+@Table+']'', @upd_cmd = N''SCALL [sp_MSupd_'+@Schema+''+@Table+']'''
+	--PRINT @TSQL
+	EXEC sp_executesql @TSQL
+
+	set @MinRec +=1
+END
+
+
+/*--------------------------------------------- Add the subscription to replication ---------------------------------------------------*/
+SET @TSQL = N'
+use ['+@PubDBName+']
+exec sp_addsubscription @publication = N'''+@Publication+''', @subscriber = N'''+@Subscriber+''', @destination_db = N'''+@DestDBName+''', @subscription_type = N''Push'', @sync_type = N''automatic'', @article = N''all'', @update_mode = N''read only'', @subscriber_type = 0
+exec sp_addpushsubscription_agent @publication = N'''+@Publication+''', @subscriber = N'''+@Subscriber+''', @subscriber_db = N'''+@DestDBName+''', @job_login = null, @job_password = null, @subscriber_security_mode = 1, @frequency_type = 64, @frequency_interval = 1, @frequency_relative_interval = 1, @frequency_recurrence_factor = 0, @frequency_subday = 4, @frequency_subday_interval = 5, @active_start_time_of_day = 0, @active_end_time_of_day = 235959, @active_start_date = 0, @active_end_date = 0, @dts_package_location = N''Distributor''
+exec sp_startpublication_snapshot @publication = N'''+@Publication+'''
+'
+
+EXEC sp_executesql @TSQL
