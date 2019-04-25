@@ -3,7 +3,7 @@ AS
 /******************************************************************************
 *  Stored Procedure Name: sp_ReplicationStop
 *  Input Parameters: @Publication=Replication Publication Name, @Subscriber=The server where the subscription database lives, @DestDBName=The database will the data lands
-*  Use Case: EXEC sp_ReplicationStop  @Publication='AMPSS_Dev',@Subscriber='V18WDDBAWL98\AMPSS_DEV',  @DestDBName='DbTools'
+*  Use Case: EXEC sp_ReplicationStop  @Publication='AMPSS_Dev',@Subscriber='',  @DestDBName='DbTools'
 *  Description: Dynamically create replication based on input parameters
 *  History:
 *  Date:		Action:								Developer: 
