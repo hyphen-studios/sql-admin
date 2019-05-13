@@ -87,8 +87,6 @@ exec sp_addpublication @publication = N'''+@Publication+''', @description = N''T
 
 exec sp_addpublication_snapshot @publication = N'''+@Publication+''', @frequency_type = 1, @frequency_interval = 0, @frequency_relative_interval = 0, @frequency_recurrence_factor = 0, @frequency_subday = 0, @frequency_subday_interval = 0, @active_start_time_of_day = 0, @active_end_time_of_day = 235959, @active_start_date = 0, @active_end_date = 0, @job_login = null, @job_password = null, @publisher_security_mode = 1
 exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''DBMS_Admin''
-exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''F18AWL\$SQL_Admin''
-exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''V18WDDBAWL98\DBMS_Installer''
 exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''NT SERVICE\Winmgmt''
 exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''NT Service\MSSQL$AMPSS''
 exec sp_grant_publication_access @publication = N'''+@Publication+''', @login = N''NT SERVICE\SQLWriter''
