@@ -1,5 +1,5 @@
 CREATE PROCEDURE [dbo].[sp_DatabaseBackup] @DBName NVARCHAR(255), @FileLocation NVARCHAR(255), @BackupFile NVARCHAR(255)  
-as
+AS
 /******************************************************************************
 *  Stored Procedure Name: sp_DatabaseBackup
 *  Input Parameters: none
@@ -10,7 +10,6 @@ as
 *  Date:		    Action:								Developer: 
 *  2017-12-21	  Initial version			  Patrick Lee
 ******************************************************************************/
-AS
 BEGIN
 -- SET NOCOUNT ON added to prevent extra result sets from interfering with SELECT statements.
  
