@@ -1,5 +1,5 @@
 CREATE PROCEDURE sp_OBjectChanges
-as
+AS
 /******************************************************************************
 *  Stored Procedure Name: sp_OBjectChanges
 *  Input Parameters: none
