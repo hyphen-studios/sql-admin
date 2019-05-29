@@ -45,13 +45,13 @@ DECLARE
 	--@Debug INT = 0
 	
 	---- One time run
-	--SET @Publication='AMPSS_DEV'
-	--SET @PubDBName='AMPSS'
-	--SET @Schemas='ampss%,staging_west,reporting'
-	--SET @ArticleType='T,V'
-	--SET @DestDBName='ReplTest'
-	--SET @Subscriber='DESKTOP-OVN2GNF'
-	--SET @ExecutedBy='Patrick'
+	--SET @Publication=''
+	--SET @PubDBName=''
+	--SET @Schemas=''
+	--SET @ArticleType='' --T=Table, V=View, P=Stored Proc, F=Function, IV=Indexed View
+	--SET @DestDBName=''
+	--SET @Subscriber=''
+	--SET @ExecutedBy=''
 	--SET @Debug= 0
 
 -- Set Variables
