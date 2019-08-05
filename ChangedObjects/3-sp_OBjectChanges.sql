@@ -51,10 +51,10 @@ BEGIN
 	
 	-- Get Database to work in
 	SELECT @DBName=DBName FROM #databases WHERE ID = @DBMin
-	SELECT @maxdate=max(eventtime) FROM DbTools.dbo.DBObjectInfo WHERE DBName = 'AMPSS_TEST'
+	SELECT @maxdate=max(eventtime) FROM SQL_Admin.dbo.DBObjectInfo WHERE DBName = 'AMPSS_TEST'
 
 	SET @TSQL = N'
-	INSERT INTO DbTools.dbo.DBObjectInfo(ServerName, SessionID, LoginName, HostName, ProgramName, DBName, EventTime, EventType, ObjectType, Object)
+	INSERT INTO SQL_Admin.dbo.DBObjectInfo(ServerName, SessionID, LoginName, HostName, ProgramName, DBName, EventTime, EventType, ObjectType, Object)
 	select
 		@@SERVERNAME,
 		e.SPID, 
