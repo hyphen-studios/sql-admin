@@ -28,6 +28,8 @@ DECLARE @allwpagecnt INT
 DECLARE @sql NVARCHAR(MAX)
 DECLARE @current INT
 DECLARE @maxrows INT
+DECLARE @StartTime datetime2
+DECLARE @EndTime INT
 
 
 SET @current = (SELECT MIN(id) FROM MaintenanceIndexes WHERE PostDefrag is NULL)
@@ -37,6 +39,8 @@ SET @maxrows = (SELECT MAX(id) FROM MaintenanceIndexes WHERE PostDefrag is NULL)
 -- Loop through the index records
 while (@current <= @maxrows)
 	BEGIN
+	
+		SET @StartTime = GETDATE()
 		
 		-- Set varaibles to prep for taking action on the indexes
 		SELECT @dbname = DBName, @dbid = DBID, @schname = schname, @tblid = TblID ,@tblname = TblName, @indxid = IndxID, @indxname = IndxName, @indxlvl = IndxLevel, @indxdepth = IndxDepth, 
@@ -64,10 +68,13 @@ while (@current <= @maxrows)
 		WHERE index_depth = @indxdepth 
 		AND index_level = @indxlvl
 
+		SET @EndTime = DATEDIFF(MINUTE, @StartTime, GETDATE())
+
 		UPDATE MaintenanceIndexes
 		SET
         Command = @sql,
-		PostDefrag = @postfrag
+		PostDefrag = @postfrag,
+		RunTime = @EndTime
 		WHERE id = @current
 
 		SET @current +=1
