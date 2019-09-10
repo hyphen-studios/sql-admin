@@ -39,6 +39,7 @@ CREATE TABLE [dbo].[MaintenanceIndexes](
 	[AllowPageCount] [int] NULL,
 	[CalcDate] [datetime] NULL,
 	[Command] [nvarchar](500) NULL,
+	[RunTime] [int] NULL,
  CONSTRAINT [PK_MaintenanceIndexes] PRIMARY KEY CLUSTERED 
 (
 	[ID] ASC
