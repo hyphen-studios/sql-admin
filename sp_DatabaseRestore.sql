@@ -1,9 +1,9 @@
-CREATE PROCEDURE [dbo].[sp_DatabaseRestore] @DBName NVARCHAR(100), @FileLocation NVARCHAR(150), @BackupFile NVARCHAR(100), @SetToSimple BIT = 1, @ShrinkLog BIT = 1  
+CREATE PROCEDURE [dbo].[sp_DatabaseRestore] @DBName NVARCHAR(100), @FileLocation NVARCHAR(150), @BackupFile NVARCHAR(100), @SetToSimple BIT = 1, @ShrinkLog BIT = 1, @Debug BIT = 0
 AS
 /******************************************************************************
 *  Stored Procedure Name: [sp_DatabaseRestore]
 *  Input Parameters: none
-*  Use Case: EXEC [sp_DatabaseRestore] @DBName='EDW', @FileLocation='\\sharename\foldername\ or C:\Folder Location', @BackupFile='edw-bu-20170110.bak', @SetToSimple=1, @ShrinkLog=1
+*  Use Case: EXEC [sp_DatabaseRestore] @DBName='EDW', @FileLocation='\\sharename\foldername\ or C:\Folder Location', @BackupFile='edw-bu-20170110.bak', @SetToSimple=1, @ShrinkLog=1, @Debug = 0
 *  ** NOTE ** The SQL Engine service accounts needs administrator access to the share or folder location
 *  Description: Restores the database
 *  History:
@@ -28,8 +28,7 @@ DECLARE
 	@dbfilecount INT,
 	@dbfileend INT,
 	@dbfilestart INT = 3,
-	@dbdatafiles NVARCHAR(max) = '',
-	@Debug BIT = 0
+	@dbdatafiles NVARCHAR(max) = ''	
 
 /* ---------- Ge information from the backup file ---------- */
 DECLARE @Table TABLE 
