@@ -1,4 +1,4 @@
-ALTER PROCEDURE [dbo].[sp_DatabaseRestore] @DBName NVARCHAR(100), @FileLocation NVARCHAR(150), @BackupFile NVARCHAR(100), @SetToSimple BIT = 1, @ShrinkLog BIT = 1  
+CREATE PROCEDURE [dbo].[sp_DatabaseRestore] @DBName NVARCHAR(100), @FileLocation NVARCHAR(150), @BackupFile NVARCHAR(100), @SetToSimple BIT = 1, @ShrinkLog BIT = 1  
 AS
 /******************************************************************************
 *  Stored Procedure Name: [sp_DatabaseRestore]
@@ -28,7 +28,8 @@ DECLARE
 	@dbfilecount INT,
 	@dbfileend INT,
 	@dbfilestart INT = 3,
-	@dbdatafiles NVARCHAR(max) = ''
+	@dbdatafiles NVARCHAR(max) = '',
+	@Debug BIT = 0
 
 /* ---------- Ge information from the backup file ---------- */
 DECLARE @Table TABLE 
