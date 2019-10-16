@@ -50,7 +50,7 @@ while (@current <= @maxrows)
 		-- Only take action on records that populated variables
 		IF LEN(@dbname) >= 1
 		BEGIN
-			SET @sql = 'USE [' + @dbName + ']; ALTER INDEX ' + @indxname + ' ON [' + @dbName  + '].' +  @schname + '.[' + @tblname + ']'
+			SET @sql = 'USE [' + @dbName + ']; ALTER INDEX [' + @indxname + '] ON [' + @dbName  + '].' +  @schname + '.[' + @tblname + ']'
 			IF (@prefrag < 30 AND @allwpagecnt = 1)
 				SET @sql =   @sql + ' REORGANIZE'
 			IF (@prefrag >= 30 OR @allwpagecnt = 0)
