@@ -34,6 +34,9 @@ ID INT IDENTITY(1, 1) primary key ,
 DBName NVARCHAR(200),
 );
 
+-- Truncate SQLEvents
+TRUNCATE TABLE SQLEvents
+
 -- Insert data from the trace file into a temp table
 INSERT INTO SQLEvents
 SELECT * FROM ::fn_trace_gettable(@TraceFile, default)
